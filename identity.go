@@ -7,7 +7,9 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/binary"
+	"errors"
 	"hash"
+	"math"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -32,21 +34,46 @@ const (
 	DefaultNumBytes      = 32
 )
 
-func getSalt(password []byte) []byte {
+func getSliceSafe(s []byte, start, end uint32) ([]byte, error) {
+	if start < 0 {
+		return nil, errors.New("start index cannot be below zero")
+	}
+
+	l := uint32(len(s))
+	if end >= l {
+		return nil, errors.New("end index cannot exceed slice length")
+	}
+
+	return s[start:end], nil
+}
+
+func getSalt(password []byte) ([]byte, error) {
 	saltLength := binary.BigEndian.Uint32(password[9:13])
-	return password[13 : 13+saltLength]
+	return getSliceSafe(password, 13, 13 + saltLength)
 }
 
-func getSaltLength(password []byte) uint32 {
-	return binary.BigEndian.Uint32(password[9:13])
+func getSaltLength(password []byte) (int, error) {
+	if saltBytes, err := getSliceSafe(password, 9, 13); err != nil {
+		return 0, err
+	} else {
+		return int(binary.BigEndian.Uint32(saltBytes)), nil
+	}
 }
 
-func getHashAlgorithm(password []byte) HashAlgorithm {
-	return HashAlgorithm(binary.BigEndian.Uint32(password[1:5]))
+func getHashAlgorithm(password []byte) (HashAlgorithm, error) {
+	if algoBytes, err := getSliceSafe(password, 1, 5); err != nil {
+		return math.MaxUint32, err
+	} else {
+		return HashAlgorithm(binary.BigEndian.Uint32(algoBytes)), nil
+	}
 }
 
-func getIterationCount(password []byte) uint32 {
-	return binary.BigEndian.Uint32(password[5:9])
+func getIterationCount(password []byte) (int, error) {
+	if iterBytes, err := getSliceSafe(password, 5, 9); err != nil {
+		return 0, err
+	} else {
+		return int(binary.BigEndian.Uint32(iterBytes)), nil
+	}
 }
 
 // GenerateSalt generates a cryptographically safe random salt of the specified length
@@ -91,16 +118,32 @@ func HashPassword(password, salt []byte, algorithm HashAlgorithm, iterations, nu
 
 // VerifyPassword verifies the given hashed password against the given clear text password and returns true if they match
 func VerifyPassword(hashedPassword []byte, clearPassword string) bool {
-	salt := getSalt(hashedPassword)
-	saltLength := int(getSaltLength(hashedPassword))
-	iterations := int(getIterationCount(hashedPassword))
-	algorithm := getHashAlgorithm(hashedPassword)
-	subkeyLength := len(hashedPassword) - 13 - saltLength
+	salt, err := getSalt(hashedPassword)
+	if err != nil {
+		return false
+	}
 
+	saltLength, err := getSaltLength(hashedPassword)
+	if err != nil {
+		return false
+	}
+
+	iterations, err := getIterationCount(hashedPassword)
+	if err != nil {
+		return false
+	}
+
+	algorithm, err := getHashAlgorithm(hashedPassword)
+	if err != nil {
+		return false
+	}
+
+	subkeyLength := len(hashedPassword) - 13 - saltLength
 	if subkeyLength < 32 {
 		return false
 	}
 
 	actualHash := HashPassword([]byte(clearPassword), salt, algorithm, iterations, subkeyLength)
-	return subtle.ConstantTimeCompare(hashedPassword, actualHash) == 1
+	success := subtle.ConstantTimeCompare(hashedPassword, actualHash) == 1
+	return success
 }
