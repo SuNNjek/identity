@@ -20,10 +20,10 @@ func main() {
     password := "my password"
 
     // Generate new random salt
-    salt := identity.GenerateSalt(identity.DefaultSaltLength)
+    salt, _ := identity.GenerateSalt(identity.DefaultSaltLength)
 
     // Hash the password using the default parameters
-    hash := identity.HashPassword(
+    hash := identity.HashPasswordV3(
         []byte(password),
         salt,
         identity.DefaultHashAlgorithm,
@@ -48,7 +48,7 @@ func main() {
     enteredPassword := "my password"
 
     // Verify the entered password against the hashed one
-    passwordsMatch := identity.VerifyPassword(hashedPassword, enteredPassword)
+    passwordsMatch := identity.Verify(hashedPassword, []byte(enteredPassword))
 
     // ...
 }

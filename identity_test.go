@@ -1,71 +1,38 @@
 package identity
 
-import (
-	"encoding/base64"
-	"testing"
-)
+import "testing"
 
-func base64Decode(str string) []byte {
-	// Ignore error for convenience, I know I'm passing correct base 64 :P
-	res, _ := base64.StdEncoding.DecodeString(str)
-	return res
-}
-
-func TestVerifyPassword(t *testing.T) {
-	type args struct {
-		hashedPassword []byte
-		clearPassword  string
-	}
+func TestVerify(t *testing.T) {
 	tests := []struct {
 		name string
-		args args
+		hash string
 		want bool
 	}{
 		{
-			"invalid password",
-			args{
-				hashedPassword: base64Decode("AQAAAAAAAAD6AAAAEAhftMyfTJyAAAAAAAAAAAAAAAAAAAih5WsjXaR3PA9M"),
-				clearPassword:  "my password",
-			},
-			false,
+			name: "success V2",
+			hash: "ANXrDknc7fGPpigibZXXZFMX4aoqz44JveK6jQuwY3eH/UyPhvr5xTPeGYEckLxz9A==",
+			want: true,
 		},
 		{
-			"password too short",
-			args{
-				hashedPassword: base64Decode("AQAAAAIAAAAyAAAAEOMwvh3+FZxqkdMBz2ekgGhwQ4A="),
-				clearPassword:  "my password",
-			},
-			false,
+			name: "success V3",
+			hash: "AQAAAAEAACcQAAAAEAABAgMEBQYHCAkKCwwNDg+yWU7rLgUwPZb1Itsmra7cbxw2EFpwpVFIEtP+JIuUEw==",
+			want: true,
 		},
 		{
-			"extra data at the end",
-			args{
-				hashedPassword: base64Decode("AQAAAAIAAAAyAAAAEOMwvh3+FZxqkdMBz2ekgGhwQ4B6pZWND6zgESBuWiHwAAAAAAAAAAAA"),
-				clearPassword:  "my password",
-			},
-			false,
+			name: "empty password",
+			hash: "",
+			want: false,
 		},
 		{
-			"success",
-			args{
-				hashedPassword: base64Decode("AQAAAAEAACcQAAAAEAABAgMEBQYHCAkKCwwNDg+yWU7rLgUwPZb1Itsmra7cbxw2EFpwpVFIEtP+JIuUEw=="),
-				clearPassword:  "my password",
-			},
-			true,
-		},
-		{
-			"SHA256, 250000 iterations, 256-bit salt, 256-bit subkey",
-			args{
-				hashedPassword: base64Decode("AQAAAAEAA9CQAAAAIESkQuj2Du8Y+kbc5lcN/W/3NiAZFEm11P27nrSN5/tId+bR1SwV8CO1Jd72r4C08OLvplNlCDc3oQZ8efcW+jQ="),
-				clearPassword:  "my password",
-			},
-			true,
+			name: "invalid format marker",
+			hash: "AtXrDknc7fGPpigibZXXZFMX4aoqz44JveK6jQuwY3eH/UyPhvr5xTPeGYEckLxz9A==",
+			want: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := VerifyPassword(tt.args.hashedPassword, tt.args.clearPassword); got != tt.want {
-				t.Errorf("VerifyPassword() = %v, want %v", got, tt.want)
+			if got := Verify(base64Decode(tt.hash), []byte("my password")); got != tt.want {
+				t.Errorf("Verify() = %v, want %v", got, tt.want)
 			}
 		})
 	}
